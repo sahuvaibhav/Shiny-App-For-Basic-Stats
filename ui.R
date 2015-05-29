@@ -159,7 +159,7 @@ shinyUI(navbarPage("Stats",
                                                        p(span("- if normtest.p > 0.05 ; sample data is from normally distributed population (http://en.wikipedia.org/wiki/Shapiro%E2%80%93Wilk_test)",style = "color:blue"))
                                                        
                                   ),
-                                  tabPanel("Plots", 
+                                  tabPanel("PlotsAnova", 
                                            uiOutput('plots')
                                            #                                     textOutput("t")
                                   )
@@ -211,6 +211,115 @@ shinyUI(navbarPage("Stats",
            ), mainPanel()
   
 
+    
+    ),
+  tabPanel("Regression",
+           tabsetPanel(tabPanel(h6(p("Data Load & Summary")),
+                                sidebarPanel("Load CSV file",
+                                             fileInput('fileReg',"",
+                                                       accept=c('text/csv', 'text/comma-separated-values,text/plain')),
+                                             #                                       tags$hr(),
+                                             checkboxInput('header', 'Header', TRUE),
+                                             div(class = "row-fluid",
+                                                 div(class="span5",radioButtons("sep",h5("Separator"),c(Comma=',',Semicolon=';',Tab='\t'),'Comma')),
+                                                 div(class="span5",radioButtons("quote",h5("Quote"),c(None='','Double Quote'='"','Single Quote'="'"),'Double Quote'))
+                                             )
+                                            ,uiOutput("Regvariable")
+                                ),
+                                mainPanel(
+                                  tabsetPanel(tabPanel("Summary",
+                                                       
+                                                       textOutput('Regfilename'),
+                                                       tableOutput('Regcontents'),
+                                                       strong(h5(div("Notes:",style = "color:red"))),
+                                                       
+                                                       p("For more Info on Data Summary refer",a("Link.",href = "https://r-forge.r-project.org/scm/viewvc.php/*checkout*/pkg/R/stat.desc.R?revision=2&root=pastecs&pathrev=4")),
+                                                       p(span("- SEMean <- StdDev/sqrt(Nbrval)",style = "color:blue")),
+                                                       p(span("- CI.mean.0.95 = confidence interval on the mean at 95%",style = "color:blue")),
+                                                       p(span("- CIMean <- qt((0.5+p/2), (Nbrval-1))*SEMean",style = "color:blue")),
+                                                       p(span("- Coef.var = Coeffficient of Variation = std.dev/mean",style = "color:blue")),
+                                                       p(span("- Skew <- sum((x-mean(x))^3)/(length(x)*sqrt(var(x))^3)        # From e1071 R library",style = "color:blue")),
+                                                       p(span("- Kurt <- sum((x-mean(x))^4)/(length(x)*var(x)^2) - 3",style = "color:blue")),
+                                                       p(span("- SE <- sqrt(6*Nbrval*(Nbrval-1)/(Nbrval-2)/(Nbrval+1)/(Nbrval+3))",style = "color:blue")),
+                                                       p(span("- Skew.2SE <- Skew/(2*SE)    if skew.2SE > 1 then skewness is significantly different than zero",style = "color:blue")),
+                                                       p(span("- SE <- sqrt(24*Nbrval*((Nbrval-1)2)/(Nbrval-3)/(Nbrval-2)/(Nbrval+3)/(Nbrval+5))",style = "color:blue")),
+                                                       p(span("- Kurt.2SE <- Kurt/(2*SE)   # if Kurt.2SE > 1, then skewness is significantly different than zero",style = "color:blue")),
+                                                       p(span("- normtest.W = the statistic of a Shapiro-Wilk test of normality <- shapiro.test(x)$statistic",style = "color:blue")),
+                                                       p(span("- normtest.p = associated probability of Shapiro-Wilk test of normality <- shapiro.test(x)$p.value",style = "color:blue")),
+                                                       p(span("- if normtest.p > 0.05 ; sample data is from normally distributed population (http://en.wikipedia.org/wiki/Shapiro%E2%80%93Wilk_test)",style = "color:blue"))
+                                                       
+                                  ),
+                                  tabPanel("PlotReg", 
+                                           uiOutput('Regplots')
+                                  )
+                                  ))  
+           ),
+                    
+           tabPanel("Regression",
+#                     sidebarPanel(
+#                       strong(h6(span("*** Do not use SAME Dependent and Independent Variables",style = "color:red")))
+#                       # ,uiOutput("varReg")              
+#                     ),
+                    mainPanel(tabsetPanel(tabPanel("REGRESSION",
+                                                   uiOutput("varReg"),         
+                                                   textOutput('textReg'),
+#                                                    textOutput('textReg2'),
+                                                   plotOutput("RegPlot"),
+                                                   strong(h5("Least Square Estimates")),
+                                                   verbatimTextOutput('SummaryReg'),
+#                                                    strong(h5("R-Squared")),
+#                                                    textOutput('Rsquared'),
+                                                   strong(h5("Box-Cox Transformation")),
+                                                   plotOutput("boxcoxPlot"),
+#                                                    strong(h5("Analysis of Variance of Estimates")),
+#                                                    tableOutput('AnovaReg'),
+                                                   strong(h5("Residual Plots")),
+                                                   plotOutput('ResPlot'),
+                                                   strong(h5("Added Variable Plot")),
+                                                   plotOutput('avPlot'),
+                                                   strong(h5("Residuals vs Regressors Plots")),
+                                                   plotOutput('ResidualPlot'),
+                                                   tableOutput('ResidualTable'),
+                                                   strong(h5("Variance Inflation Factor(VIF) Table")),
+                                                   tableOutput("VIF"),
+                                                   strong(h5("Variance Decomposition Proportions")),
+                                                   tableOutput("VarDecompProp"),
+                                                   strong(h5("Best Subset AIC")),
+                                                   verbatimTextOutput("BestAIC"),
+                                                   strong(h5("Influence Index Plots")),
+                                                   plotOutput('InfIndexPlot'),
+                                                   strong(h5("Influence Plot")),
+                                                   plotOutput('InfluencePlot')
+                                                   
+                                                   
+                    )
+                    
+                    )
+                    
+                    ,width = 12)
+           )
+           ), mainPanel()
+          ),
+  tabPanel("Contact",
+          mainPanel(
+            tags$hr(),
+            p("This Application performs various statistical rechniques."),
+            br(),
+            p("Statistics Beginners specially non programmers can find it useful."),
+            p("It provides dynamic visuals for better understanding."),
+            p("I will be adding more techniques in future."),
+            br(),
+            p("For some understanding of the techniques and use of app follow my blog",a("http://analytix-blog.blogspot.in/",href= "http://analytix-blog.blogspot.in/")),
+            p("You can find the code at github at",a("https://github.com/sahuvaibhav/Stats.git",href= "https://github.com/sahuvaibhav/Stats.git")),
+            br(),
+            p("For Queries, Feedbacks and Suggestions reach out to me at", span("sahu.vaibhav@gmail.com",style = "color:blue")),
+            br(),
+            p("LinkedIn ", a("https://www.linkedin.com/in/sahuvaibhav", href = "https://www.linkedin.com/in/sahuvaibhav")),
+            br(),
+            tags$hr(),
+            p("-Vaibhav Sahu")
+            )
+    
     
     )
 ))

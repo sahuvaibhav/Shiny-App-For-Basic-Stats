@@ -1,4 +1,4 @@
-
+options(shiny.maxRequestSize=100*1024^2) 
 source("pooled.R")
 source('unpooled.R')
 source('two_sample_prop.R')
@@ -8,6 +8,18 @@ library("pastecs")
 library("psych")
 library("car")
 library("xtable")
+library("perturb")
+library("MASS")
+panel.cor <- function(x, y, digits=2, prefix="", cex.cor)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r = (cor(x, y))
+  txt <- format(c(r, 0.123456789), digits=digits)[1]
+  txt <- paste(prefix, txt, sep="")
+  if(missing(cex.cor)) cex <- 0.4/strwidth(txt)
+  text(0.5, 0.5, txt, cex = cex)
+}
 normal = function(mean, sd, lb,ub){
   x <- seq(-4,4,length=100)*sd + mean
   hx <- dnorm(x,mean,sd)
@@ -274,7 +286,8 @@ output$contents <- renderTable({
   if (is.null(data()))
     return(NULL)
   #data = read.csv(inFile$datapath, header=input$header, sep=input$sep, quote=input$quote)
-  stat.desc(data(),norm = T)
+  #stat.desc(data(),norm = T)
+  describe(data())
   #describe(read.csv(inFile$datapath, header=input$header, sep=input$sep, quote=input$quote))
 })
 output$variable = renderUI({
@@ -294,7 +307,7 @@ output$plots <- renderUI({
     return(NULL)
   if (is.null(input$variable))
     return(NULL)
-  plot_output_list <- lapply(1:length(input$variable), function(i) {
+  plot_output_list_anova <- lapply(1:length(input$variable), function(i) {
     #plotname <- paste(input$variable[[i]], i, sep="")
     plotname <- paste("plot", i, sep="")
     plotOutput(plotname, height = 350, width = 700)
@@ -302,7 +315,7 @@ output$plots <- renderUI({
   
   # Convert the list to a tagList - this is necessary for the list of items
   # to display properly.
-  do.call(tagList, plot_output_list)
+  do.call(tagList, plot_output_list_anova)
   
 })
 
@@ -556,6 +569,376 @@ output$RoyManova= renderTable({
 
 
 ## ANOVA ENDS##
+   
+## Regression Starts ##
+dataReg = reactive({
+  inFile <- input$fileReg
+  if (is.null(inFile))
+    return(NULL)
+  else 
+    data1 = read.csv(inFile$datapath, header=input$header, sep=input$sep, quote=input$quote)
+  return(data1)
+})
 
+output$Regfilename = renderText({
+  inFile <- input$fileReg
+  if (is.null(inFile))
+    return(NULL)
+  paste("File Name :",inFile$name, "         Size:" , inFile$size/1000, "KB",sep = " ")
+})
+output$Regcontents <- renderTable({
+  if (is.null(dataReg()))
+    return(NULL)
+  #data = read.csv(inFile$datapath, header=input$header, sep=input$sep, quote=input$quote)
+  # stat.desc(data(),norm = T)
+  describe(dataReg())
+  #describe(read.csv(inFile$datapath, header=input$header, sep=input$sep, quote=input$quote))
+})
+output$Regvariable = renderUI({
+  #inFile <- input$file1
+  if (is.null(dataReg()))
+    return(NULL)
+  variables = colnames(dataReg())
+  checkboxGroupInput("Regvariable", "Choose Variables", variables,selected = variables[[1]])
+})
+#     output$t = renderText(
+#       paste(filterCatVar(),collapse = ",")
+#       #paste(input$variable[1],length(input$variable))
+#       )
+
+output$Regplots <- renderUI({
+  if (is.null(dataReg()))
+    return(NULL)
+  if (is.null(input$Regvariable))
+    return(NULL)
+  plot_output_list_reg <- lapply(1:length(input$Regvariable), function(i) {
+    #plotname <- paste(input$variable[[i]], i, sep="")
+    plotname <- paste("Regplots", i, sep="")
+    plotOutput(plotname, height = 350, width = 700)
+  })
+  
+  # Convert the list to a tagList - this is necessary for the list of items
+  # to display properly.
+  do.call(tagList, plot_output_list_reg)
+  
+})
+
+
+observe({ for (i in 1:length(input$Regvariable)) {
+  
+  local({
+    my_i <- i
+    plotname <- paste("Regplots",my_i, sep="")
+    data = dataReg() 
+    output[[plotname]] <- renderPlot({
+      par(oma = c( 2, 2, 2, 2 ) )
+      nf<- layout( matrix( c( 1, 2 ), 1, 2, byrow = TRUE),c(2, 2), c( 5, 5 ), TRUE )
+      layout.show(nf )
+      par(mfrow = c(1,2))
+      hx <- dnorm(data[[input$Regvariable[[my_i]]]],mean(data[[input$Regvariable[[my_i]]]]),sd(data[[input$Regvariable[[my_i]]]])/sqrt(length(data[[input$Regvariable[[my_i]]]])))
+      boxplot(data[[input$Regvariable[[my_i]]]],col = "red",xlab = NULL)
+      hist(data[[input$Regvariable[[my_i]]]], col = "red",main = NULL,prob = T,xlab = NULL)
+      curve(dnorm(x,mean(data[[input$Regvariable[[my_i]]]]),sd(data[[input$Regvariable[[my_i]]]])),add = T, col = "green", lwd = 2)
+      ##  Create an overall title.
+      mtext( paste(input$Regvariable[[my_i]]), outer = TRUE,cex = 1.5,col = "Blue")
+      #hist(data[[input$variable[[my_i]]]])
+    })
+  })
+}
+})
+
+
+
+output$textReg = renderText({
+  #paste("Response Variable:",input$DepVar,sep = " ")
+  paste("Model(e1):", Reg.model(),sep = " ")
+})
+# output$textReg2 = renderText({
+#   paste("Independent Variables:",paste(input$IndepVar,collapse = ","),sep = " ")
+# })
+
+output$RegPlot = renderPlot({
+  data1 = dataReg()
+  model = Reg.model()
+  #modelsplit = strsplit(model, "\\~")
+  
+#   depVarPlot = modelsplit[[1]][1]
+#   print(depVarPlot)
+#   indepVarPlot = strsplit(modelsplit[[1]][2],"\\+")
+#   print(indepVarPlot)
+  if(length(input$IndepVar) == 1){
+    plot(data1[,input$DepVar],data1[,input$IndepVar], 
+         main = paste("Scatter Plot, Correlation:", eval(cor(data1[,input$DepVar],data1[,input$IndepVar]))),
+         ylab = paste(input$DepVar), xlab= paste(input$IndepVar),
+         col="red", col.main="Dodgerblue4", col.lab="Dodgerblue4",pch=20)
+  }
+  if (length(input$IndepVar) >= 2){
+#     pairs(cbind(data1[depVarPlot],data1[,indepVarPlot[[1]]]),data = data1,upper.panel=panel.cor,
+#           main = "Scatter Plot Matrix with Correlation Coefficients")
+    pairs(cbind(data1[input$DepVar],data1[,input$IndepVar]),upper.panel=panel.cor,
+          main = "Scatter Plot Matrix with Correlation Coefficients")
+  }
+#   if (length(input$IndepVar) > 2){
+#     
+#     pairs(cbind(data1[input$DepVar],data1[,input$IndepVar]),upper.panel=panel.cor,
+#           main = "Scatter Plot Matrix with Correlation Coefficients")
+#     
+#   }
+  
+})
+
+
+output$varReg = renderUI({
+   if (is.null(dataReg()))
+       return(NULL)
+   variables = colnames(dataReg())
+   div(class = "row-fluid",
+       div(class="span2",selectInput("DepVar", strong("Dependent Variable",style = "color:red"),variables)),
+       div(class="span2",checkboxGroupInput("Select", strong("Options",style = "color:blue"),c(BoxCox = "Boxcox","No Intercept Model" = "NoIntercept","Center Variables" = "center"))),
+       #div(class="span1",checkboxInput("Nointercept", "No Intercept Model", FALSE)),
+       div(class="span1",radioButtons("Txdef", strong("Transform Dep Var",style = "color:green"),c(None = "dNone",Log= "dlog", Sqrt = "dsqrt",Square = "dsq",
+                                                                     Cube = "dcube", Exponential = "dexp"))),
+       div(class="span1",checkboxGroupInput("IndepVar", strong("Indep Vars",style = "color:green"), variables,selected = variables[[2]])),
+       div(class="span1",checkboxGroupInput("CatVar", strong("Categorical Variables",style = "color:green"), variables)),
+       div(class="span1",checkboxGroupInput("Log", strong("Log",style = "color:green"), variables)),
+       div(class="span1",checkboxGroupInput("Sqrt", strong("Sqrt",style = "color:green"), variables)),
+       div(class="span1",checkboxGroupInput("Sq", strong("Square",style = "color:green"), variables)),
+       div(class="span1",checkboxGroupInput("Cube", strong("Cube",style = "color:green"), variables)),
+       div(class="span1",checkboxGroupInput("exp", strong("Exponential",style = "color:green"), variables))
+       
+   )
+  
+})
+   
+Reg.model <- reactive({
+    print(input$Select)
+      if (is.null(input$Txdef))
+          return(NULL)
+    switch(input$Txdef,
+        dNone = { depvar = input$DepVar},
+        dlog = { depvar = paste("log(",input$DepVar,")",sep = "")},
+        dsqrt = { depvar = paste("sqrt(",input$DepVar,")",sep = "")},
+        dsq = { depvar = paste(input$DepVar,"^2",sep = "")},
+        dcube = { depvar = paste(input$DepVar,"^3",sep = "")},
+        dexp = { depvar = paste("exp(",input$DepVar,")",sep = "")})
+    indepvar = NULL
+    if (!is.null(input$IndepVar)){
+        indepvar = c(indepvar, input$IndepVar)
+    }
+    if (!is.null(input$CatVar)){
+      indepvarcat = paste("factor(",input$CatVar,")",sep = "")
+      indepvar = c(indepvar, indepvarcat)
+    }
+    if (!is.null(input$Log)){
+        indepvarlog = paste("log(",input$Log,")",sep = "")
+        indepvar = c(indepvar, indepvarlog)
+    }
+    if (!is.null(input$Sqrt)){
+        indepvarsqrt = paste("sqrt(",input$Sqrt,")",sep = "")
+        indepvar = c(indepvar, indepvarsqrt)
+    }
+    if (!is.null(input$Sq)){
+        indepvarsq = paste("I(",input$Sq,"^2)",sep = "")
+        indepvar = c(indepvar, indepvarsq)
+    }
+    if (!is.null(input$Cube)){
+        indepvarcube = paste("I(",input$Cube,"^3)",sep = "")
+        indepvar = c(indepvar, indepvarcube)
+    }
+    if (!is.null(input$exp)){
+        indepvarexp = paste("exp(",input$exp,")",sep = "")
+        indepvar = c(indepvar, indepvarexp)
+    }
+   
+    if (!is.null(indepvar)){
+        if (!is.null(input$Select) && any(input$Select == "NoIntercept")){
+            model = paste(depvar,paste("-1+",paste(indepvar,collapse = "+"),sep = ""),sep="~")
+        }
+        else  {
+            model = paste(depvar,paste(indepvar,collapse = "+"),sep = "~")
+            }
+        return(model)
+    }
+    else {
+        return(NULL)
+    }
+})   
+   
+   
+Reg.fit = reactive({
+   if (is.null(input$IndepVar))
+       return(NULL)
+   
+   data1 = dataReg()
+   if (input$Txdef == "dlog"){
+       if (nrow(data1[data1[input$DepVar] <= 0,]) > 0){
+           data1[data1[input$DepVar] <=0,input$DepVar] = 1e-5}
+   }
+   #data1[input$IndepVar] = lapply(data1[input$IndepVar],as.factor)
+   data1[input$DepVar] = lapply(data1[input$DepVar],as.numeric)
+   #e1 = paste(input$DepVar,paste(input$IndepVar,collapse = "+"),sep = "~")
+   e1 = Reg.model()
+  
+   fit = lm(formula(e1),data = data1)
+   return(fit)
+       
+  }
+)  
+   
+output$boxcoxPlot <-  renderPlot({
+    if (is.null(input$IndepVar))
+        return(NULL)
+    if(is.null(input$Select))
+        return(NULL)
+    if (input$Select != "Boxcox")
+        return(NULL)
+    
+    data1 = dataReg()
+    if (nrow(data1[data1[input$DepVar] <= 0,]) > 0){
+        data1[data1[input$DepVar] <=0,input$DepVar]= 1e-5}
+        
+    #data1[input$IndepVar] = lapply(data1[input$IndepVar],as.factor)
+    data1[input$DepVar] = lapply(data1[input$DepVar],as.numeric)
+    #e1 = paste(input$DepVar,paste(input$IndepVar,collapse = "+"),sep = "~")
+    e2 = Reg.model()
+    
+    boxCox(formula(e2),data = data1)
+})   
+   
+output$SummaryReg <- renderPrint({
+  if (is.null(dataReg()))
+    return(NULL)
+  if (is.null(input$IndepVar))
+    return(NULL)
+  summary(Reg.fit())
+})
+   
+# output$Rsquared = renderText({
+#     if (is.null(dataReg()))
+#         return(NULL)
+#     if (is.null(input$IndepVar))
+#         return(NULL)
+#     sumfit = summary(Reg.fit())
+#     paste("R-Squared :",round(sumfit$r.squared,5),"Adj R-Squared: ",round(sumfit$adj.r.squared,5), sep = " ")
+# })
+# 
+# output$AnovaReg = renderTable({
+#   if (is.null(dataReg()))
+#     return(NULL)
+#   if (is.null(input$IndepVar))
+#     return(NULL)
+#   anova(Reg.fit())
+#   
+# })
+
+Res.plot = reactive({
+  if (is.null(dataReg()))
+    return(NULL)
+  if (is.null(input$IndepVar))
+    return(NULL)
+  layout(matrix(c(1,2,3,4),2,2))
+  plot(Reg.fit())
+})
+output$ResPlot = renderPlot({
+  Res.plot()
+})
+
+output$avPlot = renderPlot({
+  if (is.null(dataReg()))
+    return(NULL)
+  if (is.null(input$IndepVar))
+    return(NULL)
+  a = strsplit(Reg.model(),"\\+")
+  n = length(a[[1]])
+  avPlots(Reg.fit(), id.n=2, id.cex=0.7,layout = c(round(sqrt(n+1)),ceiling((n+1)/round(sqrt(n+1)))))
+  
+})
+
+output$ResidualPlot = renderPlot({
+  if (is.null(dataReg()))
+    return(NULL)
+  if (is.null(input$IndepVar))
+    return(NULL)
+  
+  a = strsplit(Reg.model(),"\\+")
+  n = length(a[[1]])
+  residualPlots(lm(Reg.model(),data = dataReg()),layout = c(round(sqrt(n+1)),ceiling((n+1)/round(sqrt(n+1))))) 
+  
+})
+ 
+output$ResidualTable = renderTable({
+     if (is.null(dataReg()))
+       return(NULL)
+     if (is.null(input$IndepVar))
+       return(NULL)
+     residualPlots(Reg.fit(),plot= F) 
+})
+  
+output$VIF = renderTable({
+  if (is.null(dataReg()))
+    return(NULL)
+  if (is.null(input$IndepVar))
+    return(NULL)
+  as.matrix(vif(Reg.fit()))
+  
+})
+
+output$VarDecompProp = renderTable({
+  if (is.null(dataReg()))
+    return(NULL)
+  if (is.null(input$IndepVar))
+    return(NULL)
+  if(!is.null(input$Select) && input$Select == "center"){
+    print(colldiag(Reg.fit(),center = T))
+  }
+  else {
+      print(colldiag(Reg.fit(),center = F))
+  }
+  
+})
+
+output$BestAIC = renderPrint({
+       if (is.null(dataReg()))
+           return(NULL)
+       if (is.null(input$IndepVar))
+           return(NULL)
+       data1 = dataReg()
+        if (nrow(data1[data1[input$DepVar] <= 0,]) > 0){
+            data1[data1[input$DepVar] <=0,input$DepVar]= 1e-5}
+#        print(min(data1[input$DepVar]))
+       #data1[input$IndepVar] = lapply(data1[input$IndepVar],as.factor)
+       data1[input$DepVar] = lapply(data1[input$DepVar],as.numeric)
+       #e1 = paste(input$DepVar,paste(input$IndepVar,collapse = "+"),sep = "~")
+       e3 = Reg.model()
+       stepAIC(lm(formula(e3),data=data1))
+})
+   
+   
+# output$BestAIC = renderTable({
+#        if (is.null(dataReg()))
+#            return(NULL)
+#        if (is.null(input$IndepVar))
+#            return(NULL)
+#        print(stepAIC(Reg.fit())$anova)
+# })
+   
+   
+output$InfIndexPlot = renderPlot({
+  if (is.null(dataReg()))
+    return(NULL)
+  if (is.null(input$IndepVar))
+    return(NULL)
+  influenceIndexPlot(Reg.fit(), id.n=3)
+})
+
+output$InfluencePlot = renderPlot({
+  if (is.null(dataReg()))
+    return(NULL)
+  if (is.null(input$IndepVar))
+    return(NULL)
+  influencePlot(Reg.fit(), id.n=3)
+})
+
+## Regression Ends ##
 }
   )
